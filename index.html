@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1" name="viewport"/>
+<title>GLM – pure optimization: the performance-only PRs</title>
+
+
+<style>
+:root{--paper:#E9EEF2;--sheet:#F7F9FB;--ink:#1F2A37;--ink2:#46525F;--muted:#7D8A98;--line:#C6D0DA;--hl:#F2B632;--hl-soft:#FBE6B3;--hl-ink:#5C3D00;--done:#1E8C7A;--done-soft:#D3EEE7;--att:#4A6FA5;--att-soft:#D7E3F1;--warn:#B45309;--warn-soft:#FDE7C7}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:"Atkinson Hyperlegible",Verdana,"Segoe UI",sans-serif;font-size:18px;line-height:1.65;letter-spacing:.01em}
+a{color:var(--att)}
+.wrap{max-width:840px;margin:0 auto;padding:2rem 1rem 5rem}
+h1{font-size:2em;line-height:1.15;margin:0 0 .3em}
+h2{font-size:1.3em;margin:2.2rem 0 .6rem}
+h3.group{font-size:1.05em;color:var(--ink2);margin:1.8rem 0 .6rem;padding-bottom:.3em;border-bottom:2px solid var(--line)}
+p{max-width:66ch;margin:0 0 1em}
+.lead{color:var(--ink2);font-size:1.05em}
+.counts{display:flex;flex-wrap:wrap;gap:.6rem;margin:1rem 0 1.5rem}
+.counts div{background:var(--sheet);border:2px solid var(--line);border-radius:12px;padding:.6rem .9rem;font-size:.88em}
+.counts b{display:block;font-size:1.5em;line-height:1.1}
+.stage{background:var(--sheet);border:2px solid var(--line);border-radius:14px;padding:.8rem;margin:1rem 0 1.5rem}
+.stage svg{width:100%;height:auto;display:block}
+.cap{font-size:.78em;color:var(--ink2);margin:.5rem .2rem 0}
+svg text{font-family:inherit;font-size:14px;fill:var(--ink)}
+svg text.small{font-size:12px;fill:var(--ink2)}
+svg text.bold{font-weight:700}
+svg .box{fill:#fff;stroke:var(--line);stroke-width:1.5}
+svg .box.lit{fill:var(--hl-soft);stroke:var(--hl-ink)}
+svg .arr{stroke:var(--ink2);stroke-width:1.5;fill:none}
+svg .pin{cursor:pointer}
+svg .pin .mark{stroke-width:1.5}
+svg .pin.mine .mark{fill:var(--hl);stroke:var(--hl-ink)}
+svg .pin.other .mark{fill:var(--att-soft);stroke:var(--att)}
+svg .pin.draft .mark{stroke-dasharray:3 2}
+svg .pin text{font-size:12px;font-weight:700;fill:var(--ink);pointer-events:none}
+svg .pin.lit .mark{stroke-width:3.5}
+svg .pin.pulse .mark{animation:pulse 1s ease-in-out 3}
+@keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.5)}}
+svg .pin .mark{transform-box:fill-box;transform-origin:center}
+svg .badge{cursor:pointer}
+svg .badge rect{fill:var(--hl-soft);stroke:var(--hl-ink);stroke-width:1.2}
+.legend{display:flex;gap:1.1rem;flex-wrap:wrap;font-size:.8em;color:var(--ink2);margin:.5rem .2rem 0;align-items:center}
+.k{display:inline-block;width:15px;height:15px;vertical-align:-3px;margin-right:5px;border:1.5px solid var(--hl-ink);background:var(--hl);border-radius:50%}
+.k.other{background:var(--att-soft);border-color:var(--att)}
+.k.sq{border-radius:3px}
+.k.draft{border-style:dashed}
+article.pr{background:var(--sheet);border:2px solid var(--line);border-radius:14px;padding:1rem 1.2rem;margin:0 0 1rem;scroll-margin-top:1rem}
+article.pr.lit{border-color:var(--hl-ink);box-shadow:0 0 0 4px var(--hl-soft)}
+article.pr header{display:flex;align-items:flex-start;gap:.8rem}
+.num{flex:none;width:36px;height:36px;border-radius:50%;background:var(--hl);border:1.5px solid var(--hl-ink);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.95em}
+.num.other{background:var(--att-soft);border-color:var(--att)}
+.num.sq{border-radius:6px}
+.num.draft{border-style:dashed}
+article.pr h3{font-size:1.05em;margin:.1em 0 .2em;line-height:1.3}
+.where{font-size:.85em;color:var(--ink2);margin:0 0 .5em}
+.chips{display:flex;flex-wrap:wrap;gap:.4rem;margin:.3rem 0 .7rem}
+.chip{font-size:.72em;padding:.15em .6em;border-radius:999px;border:1.5px solid var(--line);background:#fff;color:var(--ink2)}
+.chip.open{background:var(--done-soft);border-color:var(--done);color:#0F5D50}
+.chip.draft{background:#fff;border-color:var(--ink2);border-style:dashed;color:var(--ink2)}
+.chip.rebase{background:var(--warn-soft);border-color:var(--warn);color:#7C3A03}
+.chip.mine{background:var(--hl-soft);border-color:var(--hl-ink);color:var(--hl-ink)}
+.chip.repo{background:#fff;border-color:var(--ink);color:var(--ink)}
+.chip.prefill{background:#E4E8F5;border-color:#3F58A8;color:#26397A}
+.chip.decode{background:#FDE4EC;border-color:#B4345C;color:#7A1F3D}
+.chip.both{background:#EAE4F8;border-color:#6B4BB8;color:#3F2A7A}
+article.pr p{font-size:.92em;margin:0 0 .5em}
+article.pr .result{background:#fff;border-left:5px solid var(--hl);padding:.4em .8em;border-radius:0 8px 8px 0;font-size:.9em;margin:.4em 0 .6em}
+.links{font-size:.82em;display:flex;gap:1rem;flex-wrap:wrap}
+button.map{font:inherit;font-size:.78em;padding:.25em .7em;border-radius:8px;border:1.5px solid var(--ink);background:#fff;cursor:pointer}
+button.map:hover{background:var(--hl-soft)}
+button:focus-visible,a:focus-visible,svg .pin:focus-visible .mark{outline:3px solid var(--hl);outline-offset:2px}
+.note{font-size:.85em;color:var(--ink2);background:var(--sheet);border-left:6px solid var(--att);padding:.6em 1em;border-radius:0 10px 10px 0;margin:1rem 0}
+table{border-collapse:collapse;font-size:.8em;width:100%;margin:.6rem 0 1.4rem}
+th,td{text-align:left;padding:.45em .6em;border-bottom:1.5px solid var(--line);vertical-align:top}
+th{color:var(--ink2)}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}svg .pin.pulse .mark{animation:none}}
+</style>
+<style>
+body{overflow:hidden}
+.top{height:64px;display:flex;align-items:center;gap:1rem;padding:0 1rem 0 4.4rem;border-bottom:2px solid var(--line);background:var(--paper)}
+.top h1{font-size:1.15em;margin:0;line-height:1.2}
+.top .sub{font-size:.8em;color:var(--ink2)}
+.top .grow,.viewbar .grow{flex:1}
+.top .vbtn{font-size:.78em}
+.split{display:grid;grid-template-columns:var(--leftw,50%) 10px minmax(0,1fr);height:calc(100vh - 64px)}
+.gutter{cursor:col-resize;background:var(--line);position:relative;touch-action:none}
+.gutter::after{content:"";position:absolute;top:50%;left:50%;width:4px;height:44px;margin:-22px 0 0 -2px;border-radius:2px;background:var(--ink2);opacity:.5}
+.gutter:hover,.gutter.drag{background:var(--hl)}
+.gutter:focus-visible{outline:3px solid var(--hl);outline-offset:-1px}
+body.dragging{user-select:none;cursor:col-resize}
+body.focus .top,body.focus .right,body.focus .gutter,body.focus .fit{display:none}
+body.focus .split{grid-template-columns:1fr;height:100vh}
+body.focus .left{padding:.5rem 1rem}
+body.focus .viewbar{padding-left:3.2rem}
+body.focus #focusBtn{background:var(--hl);color:var(--ink);border-color:var(--hl-ink)}
+:fullscreen body,body:fullscreen{background:var(--paper)}
+.left{overflow-y:auto;overflow-x:hidden;padding:.6rem .8rem .6rem}
+.left .view{display:block}
+.left .stage{padding:.5rem}
+.left .stage svg{display:block;width:100%;height:auto}
+body.focus .left{display:flex;flex-direction:column;overflow:hidden}
+body.focus .left .view{flex:1;min-height:0;display:flex;flex-direction:column}
+body.focus .left .stage{flex:1;min-height:0;display:flex;flex-direction:column}
+body.focus .left .stage svg{flex:1;min-height:0;width:100%;height:100%}
+.left .legend{display:none}
+.left .fit{font-size:.75em;color:var(--ink2);margin:.3rem 0 0;text-align:center;flex:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.left,.right{overflow-y:auto;overscroll-behavior:contain;padding:1rem}
+.left{border-right:0;background:var(--paper)}
+.viewbar{display:flex;gap:.5rem;align-items:center;margin:0 0 .5rem;flex-wrap:nowrap;overflow:hidden;flex:none;position:sticky;top:0;z-index:2;background:var(--paper);padding-bottom:.3rem}
+.viewbar .vbtn{white-space:nowrap}
+#focusBtn{margin-left:auto}
+.left{container-type:inline-size}
+@container (max-width:470px){#focusBtn span{display:none}#focusBtn{padding:.3em .6em}}
+@container (max-width:400px){.vbtn[data-view="zoom"] span{display:none}}
+.vbtn{font:inherit;font-size:.85em;padding:.4em .9em;border-radius:999px;border:2px solid var(--ink);background:#fff;cursor:pointer}
+.vbtn.on{background:var(--ink);color:#fff}
+.vbtn:focus-visible{outline:3px solid var(--hl);outline-offset:2px}
+.view[hidden]{display:none!important}
+.left .stage{margin:0}
+.right{background:var(--sheet)}
+.right h2{font-size:1.05em;margin:.2rem 0 .6rem}
+.hint{font-size:.85em;color:var(--ink2);background:var(--hl-soft);border-left:6px solid var(--hl);padding:.6em 1em;border-radius:0 10px 10px 0;margin:0 0 1rem}
+article.pr{padding:0;margin:0 0 .6rem;background:#fff;scroll-margin-top:.5rem}
+article.pr.open{border-color:var(--hl-ink);box-shadow:0 0 0 4px var(--hl-soft)}
+.acc{width:100%;display:flex;align-items:center;gap:.8rem;text-align:left;font:inherit;background:none;border:0;padding:.8rem 1rem;cursor:pointer;border-radius:12px;color:var(--ink)}
+.acc:hover{background:var(--hl-soft)}
+.acc:focus-visible{outline:3px solid var(--hl);outline-offset:-3px}
+.acc .ttl{flex:1;min-width:0}
+.acc h3{font-size:1em;margin:0 0 .25em;line-height:1.3}
+.acc .chips{margin:0}
+.acc .grp{font-size:.72em;color:var(--muted);margin-top:.3em}
+.acc .caret{font-size:1.2em;color:var(--ink2);transition:transform .2s}
+article.pr.open .caret{transform:rotate(180deg)}
+article.pr .body{display:none;padding:0 1.2rem 1rem 1.2rem;border-top:1.5px solid var(--line)}
+article.pr.open .body{display:block}
+article.pr .body .where{margin:.8em 0 .6em}
+#about .body{padding-top:.6rem}
+#about .counts{margin:.6rem 0 1rem}
+#about .stage{margin:.6rem 0 1rem}
+@media (max-width:900px){
+  body{overflow:auto}
+  .split{display:block;height:auto}
+  .left,.right{overflow:visible;height:auto;border-right:0}
+  .left{display:block;border-bottom:2px solid var(--line)}
+  .left .view,.left .stage{display:block}
+  .left .stage svg{height:auto}
+  .gutter{display:none}
+}
+</style>
+
+</head>
+<body>
+<div class="top"><h1>GLM-5.2 on ROCm: the pure performance PRs</h1><span class="sub">click a pin on the left · the PR opens on the right</span><span class="grow"></span><button class="vbtn" id="fsBtn" title="Use the whole screen (Esc to leave)">⛶ Full screen</button></div>
+<div class="split">
+<div class="left">
+<div class="viewbar"><button class="vbtn on" data-view="model">Model flow</button><button class="vbtn" data-view="zoom">Indexer<span> zoom (9 PRs)</span></button><span class="grow"></span><button aria-label="Model only" class="vbtn" id="focusBtn" title="Model only: hide the list and use the whole window (press again or Esc to come back)">⤢<span> Model only</span></button></div>
+<div class="view" id="view-model">
+<div class="stage">
+<svg aria-label="GLM-5.2 dataflow with numbered pins marking where each pull request applies" role="img" viewbox="0 0 680 990">
+<g id="n0"><rect class="box" height="44" rx="8" width="240" x="220" y="20"></rect><text class="bold" text-anchor="middle" x="340" y="38">Your words</text><text class="small" text-anchor="middle" x="340" y="56">154,880-piece dictionary</text></g>
+<line class="arr" marker-end="url(#ah)" x1="340" x2="340" y1="64" y2="84"></line>
+<g id="n1"><rect class="box" height="48" rx="8" width="240" x="220" y="88"></rect><text class="bold" text-anchor="middle" x="340" y="107">embed_tokens</text><text class="small" text-anchor="middle" x="340" y="126">word → 6,144 numbers</text></g>
+<line class="arr" marker-end="url(#ah)" x1="340" x2="340" y1="136" y2="160"></line>
+<rect fill="none" height="632" rx="16" stroke="var(--ink2)" stroke-dasharray="7 5" stroke-width="1.5" width="560" x="60" y="164"></rect>
+<text class="bold" text-anchor="middle" x="340" y="188">Transformer layer — repeats ×78</text>
+<g id="n2"><rect class="box" height="44" rx="8" width="240" x="220" y="204"></rect><text class="bold" text-anchor="middle" x="340" y="222">RMSNorm</text><text class="small" text-anchor="middle" x="340" y="240">volume stabilizer</text></g>
+<line class="arr" marker-end="url(#ah)" x1="340" x2="340" y1="248" y2="268"></line>
+<rect fill="none" height="172" rx="12" stroke="var(--ink2)" stroke-dasharray="7 5" stroke-width="1.5" width="500" x="90" y="272"></rect>
+<text class="bold" text-anchor="middle" x="340" y="298">MLA attention + DSA sparse attention</text>
+<g id="n3"><rect class="box" height="88" rx="8" width="146" x="104" y="330"></rect><text class="bold" text-anchor="middle" x="177" y="356">kv latent proj</text><text class="small" text-anchor="middle" x="177" y="378">MLA: compress</text><text class="small" text-anchor="middle" x="177" y="396">and expand notes</text></g>
+<g id="n4"><rect class="box" height="88" rx="8" width="160" x="266" y="330"></rect><text class="bold" text-anchor="middle" x="346" y="356">Indexer</text><text class="small" text-anchor="middle" x="346" y="378">picks top 2,048</text><text class="small" text-anchor="middle" x="346" y="396">exists in 1 layer in 4</text></g>
+<g id="n5"><rect class="box" height="88" rx="8" width="134" x="442" y="330"></rect><text class="bold" text-anchor="middle" x="509" y="356">Attention</text><text class="small" text-anchor="middle" x="509" y="378">QK-Norm, RoPE</text><text class="small" text-anchor="middle" x="509" y="396">reads 2,048 only</text></g>
+<g aria-label="Ten PRs inside the indexer, jump to zoom" class="badge" id="zoomBadge" role="button" tabindex="0"><rect height="20" rx="10" width="152" x="270" y="421"></rect><text class="small" text-anchor="middle" x="346" y="435">9 PRs inside → zoom</text></g>
+<line class="arr" marker-end="url(#ah)" x1="340" x2="340" y1="444" y2="456"></line>
+<path class="arr" d="M 340 258 L 74 258 L 74 472 L 322 472" marker-end="url(#ah)" stroke-dasharray="5 4"></path>
+<g id="n6"><circle class="box" cx="340" cy="472" r="14"></circle><text class="bold" text-anchor="middle" x="340" y="477">+</text></g>
+<line class="arr" marker-end="url(#ah)" x1="340" x2="340" y1="486" y2="496"></line>
+<g id="n7"><rect class="box" height="44" rx="8" width="240" x="220" y="500"></rect><text class="bold" text-anchor="middle" x="340" y="518">RMSNorm</text><text class="small" text-anchor="middle" x="340" y="536">volume stabilizer again</text></g>
+<line class="arr" marker-end="url(#ah)" x1="340" x2="340" y1="544" y2="560"></line>
+<rect fill="none" height="168" rx="12" stroke="var(--ink2)" stroke-dasharray="7 5" stroke-width="1.5" width="500" x="90" y="564"></rect>
+<text class="bold" text-anchor="middle" x="340" y="590">Mixture of experts (SwiGLU MLPs, MXFP4)</text>
+<g id="n8"><rect class="box" height="88" rx="8" width="140" x="104" y="622"></rect><text class="bold" text-anchor="middle" x="174" y="648">Router</text><text class="small" text-anchor="middle" x="174" y="670">scores 256,</text><text class="small" text-anchor="middle" x="174" y="688">keeps top 8</text></g>
+<g id="n9"><rect class="box" height="88" rx="8" width="180" x="260" y="622"></rect><text class="bold" text-anchor="middle" x="350" y="648">8 of 256 experts</text><text class="small" text-anchor="middle" x="350" y="670">fused grouped GEMM</text><text class="small" text-anchor="middle" x="350" y="688">shared expert fused in</text></g>
+<g id="n10"><rect class="box" height="88" rx="8" width="120" x="456" y="622"></rect><text class="bold" text-anchor="middle" x="516" y="648">Shared</text><text class="small" text-anchor="middle" x="516" y="670">always on</text></g>
+<line class="arr" marker-end="url(#ah)" x1="340" x2="340" y1="732" y2="746"></line>
+<path class="arr" d="M 340 554 L 74 554 L 74 762 L 322 762" marker-end="url(#ah)" stroke-dasharray="5 4"></path>
+<g id="n11"><circle class="box" cx="340" cy="762" r="14"></circle><text class="bold" text-anchor="middle" x="340" y="767">+</text></g>
+<text class="small" text-anchor="middle" x="340" y="790">↻ loops back to the top of the layer, 78 times</text>
+<line class="arr" marker-end="url(#ah)" x1="340" x2="340" y1="796" y2="816"></line>
+<g id="n12"><rect class="box" height="36" rx="8" width="240" x="220" y="820"></rect><text class="bold" text-anchor="middle" x="340" y="843">Final RMSNorm</text></g>
+<line class="arr" marker-end="url(#ah)" x1="340" x2="340" y1="856" y2="872"></line>
+<g id="n13"><rect class="box" height="48" rx="8" width="240" x="220" y="876"></rect><text class="bold" text-anchor="middle" x="340" y="895">lm_head</text><text class="small" text-anchor="middle" x="340" y="914">scores all 154,880 words</text></g>
+<g id="n14"><rect class="box" height="56" rx="8" width="160" x="478" y="872"></rect><text class="bold" text-anchor="middle" x="558" y="894">MTP module</text><text class="small" text-anchor="middle" x="558" y="914">drafts ~5 ahead</text></g>
+<line class="arr" marker-end="url(#ah)" x1="460" x2="472" y1="900" y2="900"></line>
+<line class="arr" marker-end="url(#ah)" x1="340" x2="340" y1="924" y2="944"></line>
+<text class="small" text-anchor="middle" x="340" y="964">the next word comes out</text>
+<g aria-label="Pin 1, vLLM 47757, fused RoPE, concat and cache write before attention" class="pin other" data-node="n5" data-pr="v47757" role="button" tabindex="0"><circle class="mark" cx="442" cy="330" r="11"></circle><text text-anchor="middle" x="442" y="334.5">1</text></g>
+<g aria-label="Pin 9, vLLM 50535, router" class="pin mine" data-node="n8" data-pr="v50535" role="button" tabindex="0"><circle class="mark" cx="104" cy="622" r="11"></circle><text text-anchor="middle" x="104" y="626.5">9</text></g>
+<g aria-label="Pin D, AITER 4629, fused MoE" class="pin other" data-node="n9" data-pr="a4629" role="button" tabindex="0"><rect class="mark" height="22" rx="4" width="22" x="249" y="611"></rect><text text-anchor="middle" x="260" y="626.5">D</text></g>
+</svg>
+<div class="legend"><span><span class="k"></span>amd-sriram, vLLM</span><span><span class="k other"></span>others, vLLM</span><span><span class="k other sq"></span>others, AITER</span></div>
+</div>
+</div>
+<div class="view" hidden="" id="view-zoom">
+<div class="stage">
+<svg aria-label="Indexer pipeline with vLLM pins above each stage and AITER kernel pins below" role="img" viewbox="0 0 680 362">
+<path d="M 20 44 L 20 32 L 660 32 L 660 44" fill="none" stroke="var(--ink2)" stroke-width="1.5"></path>
+<text class="small" text-anchor="middle" x="330" y="24">whole module: vllm/v1/attention/ops/rocm_aiter_mla_sparse.py</text>
+<text class="small" x="20" y="62">vLLM ↓</text>
+<g id="z1"><rect class="box" height="96" rx="8" width="118" x="20" y="80"></rect><text class="bold" text-anchor="middle" x="79" y="106">Prologue</text><text class="small" text-anchor="middle" x="79" y="126">K-norm, RoPE,</text><text class="small" text-anchor="middle" x="79" y="142">FP8 quant,</text><text class="small" text-anchor="middle" x="79" y="158">K-cache write</text></g>
+<line class="arr" marker-end="url(#ah)" x1="138" x2="152" y1="128" y2="128"></line>
+<g id="z2"><rect class="box" height="96" rx="8" width="118" x="156" y="80"></rect><text class="bold" text-anchor="middle" x="215" y="106">Score</text><text class="small" text-anchor="middle" x="215" y="126">MQA logits:</text><text class="small" text-anchor="middle" x="215" y="142">new word vs</text><text class="small" text-anchor="middle" x="215" y="158">every note</text></g>
+<line class="arr" marker-end="url(#ah)" x1="274" x2="288" y1="128" y2="128"></line>
+<g id="z3"><rect class="box" height="96" rx="8" width="100" x="292" y="80"></rect><text class="bold" text-anchor="middle" x="342" y="106">Sanitize</text><text class="small" text-anchor="middle" x="342" y="126">NaN/Inf →</text><text class="small" text-anchor="middle" x="342" y="142">safe values</text></g>
+<line class="arr" marker-end="url(#ah)" x1="392" x2="406" y1="128" y2="128"></line>
+<g id="z4"><rect class="box" height="96" rx="8" width="100" x="410" y="80"></rect><text class="bold" text-anchor="middle" x="460" y="106">Top-k</text><text class="small" text-anchor="middle" x="460" y="126">keep the best</text><text class="small" text-anchor="middle" x="460" y="142">2,048</text></g>
+<line class="arr" marker-end="url(#ah)" x1="510" x2="524" y1="128" y2="128"></line>
+<g id="z5"><rect class="box" height="96" rx="8" width="132" x="528" y="80"></rect><text class="bold" text-anchor="middle" x="594" y="106">Remap</text><text class="small" text-anchor="middle" x="594" y="126">positions →</text><text class="small" text-anchor="middle" x="594" y="142">paged KV indices</text></g>
+<text class="small" x="20" y="210">AITER ↑ kernels underneath</text>
+<path class="arr" d="M 594 176 L 594 246 L 420 246" marker-end="url(#ah)"></path>
+<g id="z6"><rect class="box" height="44" rx="8" width="204" x="212" y="226"></rect><text class="bold" text-anchor="middle" x="314" y="246">Shared list → next 3 layers</text><text class="small" text-anchor="middle" x="314" y="262">IndexShare: they skip all of the above</text></g>
+<path class="arr" d="M 212 248 L 130 248 L 130 290 L 300 290" marker-end="url(#ah)"></path>
+<g id="z7"><rect class="box" height="36" rx="8" width="200" x="304" y="274"></rect><text class="bold" text-anchor="middle" x="404" y="297">MLA attention reads 2,048</text></g>
+<g aria-label="Pin 2, vLLM 46172, prologue and top-k" class="pin other" data-node="z1" data-pr="v46172" role="button" tabindex="0"><circle class="mark" cx="20" cy="80" r="11"></circle><text text-anchor="middle" x="20" y="84.5">2</text></g>
+<g aria-label="Pin 3, vLLM 47335, prologue query side" class="pin other" data-node="z1" data-pr="v47335" role="button" tabindex="0"><circle class="mark" cx="46" cy="80" r="11"></circle><text text-anchor="middle" x="46" y="84.5">3</text></g>
+<g aria-label="Pin 4, vLLM 51315, prologue key side" class="pin mine" data-node="z1" data-pr="v51315" role="button" tabindex="0"><circle class="mark" cx="72" cy="80" r="11"></circle><text text-anchor="middle" x="72" y="84.5">4</text></g>
+<g aria-label="Pin 5, vLLM 51314, score prefill" class="pin mine" data-node="z2" data-pr="v51314" role="button" tabindex="0"><circle class="mark" cx="156" cy="80" r="11"></circle><text text-anchor="middle" x="156" y="84.5">5</text></g>
+<g aria-label="Pin 6, vLLM 53789, sanitize" class="pin mine" data-node="z3" data-pr="v53789" role="button" tabindex="0"><circle class="mark" cx="292" cy="80" r="11"></circle><text text-anchor="middle" x="292" y="84.5">6</text></g>
+<g aria-label="Pin 2 again, vLLM 46172, top-k" class="pin other" data-node="z4" data-pr="v46172" role="button" tabindex="0"><circle class="mark" cx="410" cy="80" r="11"></circle><text text-anchor="middle" x="410" y="84.5">2</text></g>
+<g aria-label="Pin 7, vLLM 51309, remap" class="pin mine" data-node="z5" data-pr="v51309" role="button" tabindex="0"><circle class="mark" cx="528" cy="80" r="11"></circle><text text-anchor="middle" x="528" y="84.5">7</text></g>
+<g aria-label="Pin A, AITER 4538, score prefill kernel" class="pin other" data-node="z2" data-pr="a4538" role="button" tabindex="0"><rect class="mark" height="22" rx="4" width="22" x="145" y="165"></rect><text text-anchor="middle" x="156" y="180.5">A</text></g>
+<g aria-label="Pin B, AITER 4221, score decode kernel" class="pin other" data-node="z2" data-pr="a4221" role="button" tabindex="0"><rect class="mark" height="22" rx="4" width="22" x="171" y="165"></rect><text text-anchor="middle" x="182" y="180.5">B</text></g>
+<g aria-label="Pin C, AITER 4355, top-k kernel" class="pin other" data-node="z4" data-pr="a4355" role="button" tabindex="0"><rect class="mark" height="22" rx="4" width="22" x="399" y="165"></rect><text text-anchor="middle" x="410" y="180.5">C</text></g>
+<text class="small" x="20" y="318">Prologue: 2 wired the AITER kernels in (and also touches top-k).</text>
+<text class="small" x="20" y="334">3 fuses the query side of the prologue; 4 fuses the key side and the cache write.</text>
+<text class="small" x="20" y="350">5 and A = prefill path; B = decode path.</text>
+</svg>
+</div>
+<p class="fit">Press "Model flow" above to go back to the whole model.</p>
+</div>
+<p class="fit">Drag the bar right to zoom the model · double-click it to fit the model again</p>
+</div>
+<div aria-label="Resize panels" aria-orientation="vertical" class="gutter" id="gutter" role="separator" tabindex="0" title="Drag to resize, double-click to reset"></div>
+<div class="right">
+<p class="hint">Click a pin on the model, or a PR below. One PR opens at a time; the pin lights up on the left. Only pure performance PRs are shown; pin numbers match the full optimization page. Press "9 PRs inside → zoom" on the model to swap it for the indexer close-up.<br/><span class="legend" style="margin-top:.4rem"><span><span class="k"></span>amd-sriram, vLLM</span><span><span class="k other"></span>others, vLLM</span><span><span class="k other sq"></span>others, AITER</span></span></p>
+<article class="pr" id="about">
+<button aria-expanded="false" class="acc"><div class="num other" style="font-size:.8em">?</div><div class="ttl"><h3>About this map: legend, counts, prefill vs decode</h3><div class="grp">open once, then close it</div></div><span aria-hidden="true" class="caret">▾</span></button>
+<div class="body">
+<p class="lead" style="font-size:.95em">Twelve open pull requests, pinned onto the model's dataflow. Circles are vLLM (the engine that decides what to run). Squares are AITER (the AMD kernel library that does the computing). Amber means amd-sriram's own PR; blue means someone else's. Status as of 12 September 2026.</p>
+<div class="stage">
+<svg aria-label="The software stack: model design from Z.ai, vLLM engine, AITER kernels, MI355X GPU" role="img" viewbox="0 0 680 120">
+<defs><marker id="ah" markerheight="6" markerwidth="6" orient="auto" refx="8" refy="5" viewbox="0 0 10 10"><path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"></path></marker></defs>
+<rect class="box" height="60" rx="8" width="146" x="16" y="30"></rect><text class="bold" text-anchor="middle" x="89" y="54">GLM-5.2 design</text><text class="small" text-anchor="middle" x="89" y="74">Z.ai: what to compute</text>
+<line class="arr" marker-end="url(#ah)" x1="162" x2="182" y1="60" y2="60"></line>
+<rect class="box" height="60" rx="8" width="146" x="186" y="30"></rect><text class="bold" text-anchor="middle" x="259" y="54">vLLM</text><text class="small" text-anchor="middle" x="259" y="74">engine: what runs, when</text>
+<line class="arr" marker-end="url(#ah)" x1="332" x2="352" y1="60" y2="60"></line>
+<rect class="box" height="60" rx="8" width="146" x="356" y="30"></rect><text class="bold" text-anchor="middle" x="429" y="54">AITER</text><text class="small" text-anchor="middle" x="429" y="74">the GPU kernels</text>
+<line class="arr" marker-end="url(#ah)" x1="502" x2="522" y1="60" y2="60"></line>
+<rect class="box" height="60" rx="8" width="138" x="526" y="30"></rect><text class="bold" text-anchor="middle" x="595" y="54">MI355X</text><text class="small" text-anchor="middle" x="595" y="74">gfx950, TP=4</text>
+<text class="small" x="16" y="110">8 vLLM PRs (circles) · 4 AITER PRs (squares) · the same GLM-5.2 stage can have both, one above the other</text>
+</svg>
+</div>
+<div class="counts">
+<div><b>12</b>open PRs mapped</div>
+<div><b>2 · 5 · 5</b>prefill-only · decode-only · both</div>
+<div><b>8 + 4</b>vLLM + AITER</div>
+<div><b>5</b>by amd-sriram</div>
+<div><b>9</b>inside the DSA indexer</div>
+<div><b>2</b>in the MoE block</div>
+<div><b>1</b>in MLA attention</div>
+</div>
+<h2>Prefill or decode?</h2>
+<p>Every pass through the model is one of two kinds. <b>Prefill</b> is the first pass: the whole prompt goes through all 78 layers at once, fills the KV cache, and produces the first token; it is compute-heavy and sets the time to first token (TTFT). <b>Decode</b> is every pass after that: one new token per sequence goes through the 78 layers, reads the cache, adds one entry; it is memory-bound and sets the time per output token (TPOT). GLM-5.2 uses different kernels for the two, so each PR below carries a phase label: <span class="chip prefill">prefill</span> <span class="chip decode">decode</span> <span class="chip both">both</span>.</p>
+<h2>How the pieces fit</h2>
+<p>Read the indexer zoom top to bottom and you get the division of labour. AITER PRs A, B and C build faster kernels for scoring and top-k. vLLM PR 2 wires AITER kernels in; 3 and 4 fuse the query side and the key side of the prologue; 5 and 6 stop vLLM doing wasted work around the scores; 7 makes vLLM honour IndexShare. In the attention block, 1 fuses the RoPE, concat and cache write that run before every MLA read. In the MoE block, D tunes the fused expert kernel and 9 gives the router its fast GEMM.</p>
+<div class="note">Result numbers below come from each PR's own description. The two xaguilar-amd PRs were measured on GLM-5.2-FP8 with MI325X (gfx942) at TP=8; all others on amd/GLM-5.2-MXFP4 with MI355X at TP=4. Statuses were read from GitHub on 12 September 2026.</div>
+</div>
+</article>
+<h2>The 12 PRs, in model order</h2>
+<article class="pr" data-view="model" id="pr-v47757">
+<button aria-expanded="false" class="acc"><div class="num other">1</div><div class="ttl"><h3>Fuse decode QK-RoPE + Q-concat + KV-concat + KV-cache write for sparse MLA</h3><div class="chips"><span class="chip repo">vLLM #47757</span><span class="chip">xaguilar-amd</span><span class="chip open">Open</span><span class="chip">7 commits</span><span class="chip">opened 6 Jul</span><span class="chip decode" title="the fused kernel lives on the sparse-MLA decode path, one token per sequence">decode</span></div><div class="grp">MLA attention</div></div><span aria-hidden="true" class="caret">▾</span></button>
+<div class="body"><div class="where">Where: the attention block itself, the per-layer query and key preparation that runs right before MLA attention reads the 2,048 notes. Phase: decode — the fused kernel lives on the sparse-MLA decode path, one token per sequence.</div>
+<p>On ROCm the sparse-MLA decode path ran four back-to-back ops per layer: RoPE on the position parts of q and k, the query concat, the KV concat, and the fp8 KV-cache write. This collapses them into one AITER kernel, fused_qk_rope_concat_and_cache_mla, dispatched from the MLA layer with a clean fallback whenever the gate does not apply (non-ROCm, no AITER, non-fp8 cache). Positions travel as a real argument because a forward-context stash was not torch.compile or CUDA-graph safe.</p>
+<div class="result">GLM-5.2-FP8 on gfx942, TP=8: TPOT and throughput about 1.02 to 1.04× across the sweep (for example +3.7% at ISL 1024 concurrency 1, +4.0% throughput at ISL 8192 concurrency 32). gsm8k 0.94, unchanged. The MTP drafters reuse the same MLA layers, so they get the fusion too.</div>
+<div class="links"><a href="https://github.com/vllm-project/vllm/pull/47757">PR #47757</a><button class="map" data-goto="v47757">Show on map</button></div>
+</div>
+</article>
+<article class="pr" data-view="zoom" id="pr-v46172">
+<button aria-expanded="false" class="acc"><div class="num other">2</div><div class="ttl"><h3>Optimize rocm aiter sparse mla indexer</h3><div class="chips"><span class="chip repo">vLLM #46172</span><span class="chip">tjtanaa (EmbeddedLLM)</span><span class="chip open">Open</span><span class="chip">opened 19 Jun</span><span class="chip both" title="cp_gather K-quant-cache serves prefill, top_k_per_row_decode serves decode">both</span></div><div class="grp">Indexer — vLLM side (what gets called, and when)</div></div><span aria-hidden="true" class="caret">▾</span></button>
+<div class="body"><div class="where">Where: indexer prologue and top-k. The PR that first wired three AITER kernels into the sparse path: cp_gather_indexer_k_quant_cache, indexer_k_quant_and_cache, top_k_per_row_decode. Phase: both — cp_gather K-quant-cache serves prefill, top_k_per_row_decode serves decode.</div>
+<p>Follows the "speed of light" layout from AMD's ATOM plugin for top-k 2,048, so vLLM and ATOM share the same AITER kernels going forward. It also introduced the module-level FP8_DTYPE constant used across the module.</p>
+<div class="result">Validated on DeepSeek-V3.2 at 1M context: gsm8k about 0.95 at block sizes 1 and 64, with performance gains from all three kernels. This is the foundation most of the amber indexer pins build on.</div>
+<div class="links"><a href="https://github.com/vllm-project/vllm/pull/46172">PR #46172</a><button class="map" data-goto="v46172">Show on map</button></div>
+</div>
+</article>
+<article class="pr" data-view="zoom" id="pr-v47335">
+<button aria-expanded="false" class="acc"><div class="num other">3</div><div class="ttl"><h3>Enable fused indexer-Q RoPE+quant kernel for DeepSeek/GLM sparse attention</h3><div class="chips"><span class="chip repo">vLLM #47335</span><span class="chip">xaguilar-amd</span><span class="chip open">Open</span><span class="chip">3 commits</span><span class="chip">opened 1 Jul</span><span class="chip both" title="query prep runs in every pass; the PR measured its gain on decode">both</span></div><div class="grp">Indexer — vLLM side (what gets called, and when)</div></div><span aria-hidden="true" class="caret">▾</span></button>
+<div class="body"><div class="where">Where: indexer stage 1, the query side of the prologue. Pin 4 is the matching key side. Phase: both — query prep runs in every pass; the PR measured its gain on decode.</div>
+<p>The fused_indexer_q_rope_quant kernel already existed in vLLM and already ran on CUDA; on ROCm the same work fell back to a chain of small Triton and elementwise kernels per sparse layer per decode token. A two-line enablement turns it on for glm_moe_dsa: query-side RoPE, FP8 quantization and the weight-scale fold become one launch, four Q-side kernels → one.</p>
+<div class="result">About 170 ms of self-GPU time reclaimed on rank 0 over a decode capture, roughly 0.7% of the total; a consistent 0.3–0.9% end-to-end improvement on GLM-5.2-FP8 at TP=8 with no credible regression. gsm8k 0.9469, unchanged.</div>
+<div class="links"><a href="https://github.com/vllm-project/vllm/pull/47335">PR #47335</a><button class="map" data-goto="v47335">Show on map</button></div>
+</div>
+</article>
+<article class="pr" data-view="zoom" id="pr-v51315">
+<button aria-expanded="false" class="acc"><div class="num">4</div><div class="ttl"><h3>Fuse the DSA indexer prologue with AITER</h3><div class="chips"><span class="chip repo">vLLM #51315</span><span class="chip mine">amd-sriram</span><span class="chip open">Open</span><span class="chip rebase">needs-rebase</span><span class="chip">opened 6 Aug</span><span class="chip both" title="measured on both, and they move in opposite directions: decode −66%, prefill +65%">both</span></div><div class="grp">Indexer — vLLM side (what gets called, and when)</div></div><span aria-hidden="true" class="caret">▾</span></button>
+<div class="body"><div class="where">Where: indexer stage 1, the key side of the prologue. Four kernels, K normalization, Q/K RoPE, FP8 quantization, K-cache write, become one fused AITER kernel. Phase: both — measured on both, and they move in opposite directions: decode −66%, prefill +65%.</div>
+<p>Uses AITER's fused indexer_qk_rope_quant_and_cache kernel for the supported BF16/FP8 shape; other shapes keep the old path.</p>
+<div class="result">Launches 4 → 1. Decode stage 17.4 µs → 5.9 µs (−66%), prefill 164 µs → 271 µs (+65%). Net prologue GPU time −4.8%; throughput +0.7%, TPOT −0.7%. Accuracy unchanged.</div>
+<div class="links"><a href="https://github.com/vllm-project/vllm/pull/51315">PR #51315</a><button class="map" data-goto="v51315">Show on map</button></div>
+</div>
+</article>
+<article class="pr" data-view="zoom" id="pr-v51314">
+<button aria-expanded="false" class="acc"><div class="num">5</div><div class="ttl"><h3>Skip cleaning sparse prefill MQA logits</h3><div class="chips"><span class="chip repo">vLLM #51314</span><span class="chip mine">amd-sriram</span><span class="chip open">Open</span><span class="chip">opened 6 Aug</span><span class="chip prefill" title="the prefill logits buffer only; TTFT moves, throughput does not">prefill</span></div><div class="grp">Indexer — vLLM side (what gets called, and when)</div></div><span aria-hidden="true" class="caret">▾</span></button>
+<div class="body"><div class="where">Where: indexer stage 2, prefill path. The buffer holding the scores of the new word against every note. Phase: prefill — the prefill logits buffer only; TTFT moves, throughput does not.</div>
+<p>The scores buffer was created with torch.full(−inf), an FP32 fill before every logits kernel. The only reader never looks at the padding, so the fill is unnecessary. Passes clean_logits=False and uses torch.empty.</p>
+<div class="result">18,162 fill launches → 0; 1.25 s of GPU time removed (0.89% of kernel time). TTFT −1.1% geomean at ISL 8192, −4.9% at concurrency 32. Throughput flat, as expected for a prefill-only change.</div>
+<div class="links"><a href="https://github.com/vllm-project/vllm/pull/51314">PR #51314</a><button class="map" data-goto="v51314">Show on map</button></div>
+</div>
+</article>
+<article class="pr" data-view="zoom" id="pr-v53789">
+<button aria-expanded="false" class="acc"><div class="num">6</div><div class="ttl"><h3>Bound the decode paged-MQA-logits sanitize to the top-k read region</h3><div class="chips"><span class="chip repo">vLLM #53789</span><span class="chip mine">amd-sriram</span><span class="chip open">Open</span><span class="chip rebase">needs-rebase</span><span class="chip">opened 25 Aug</span><span class="chip decode" title="the decode sanitize runs every decode step; gain grows with concurrency">decode</span></div><div class="grp">Indexer — vLLM side (what gets called, and when)</div></div><span aria-hidden="true" class="caret">▾</span></button>
+<div class="body"><div class="where">Where: indexer stage 3, between scoring and top-k, decode path. Phase: decode — the decode sanitize runs every decode step; gain grows with concurrency.</div>
+<p>Every decode step ran nan_to_num_(−inf) over the whole [rows, max_model_len] workspace, 43 µs per call at max_model_len 258,048 regardless of context. A small Triton kernel now sanitizes only the slice top-k reads.</p>
+<div class="result">Per call 43.1 µs → 4.6 µs; 426 ms → 52 ms total on rank 0. +3.2% throughput and −3.3% TPOT at concurrency 256, geomean +0.6%. gsm8k unchanged; 9 kernel tests pass.</div>
+<div class="links"><a href="https://github.com/vllm-project/vllm/pull/53789">PR #53789</a><button class="map" data-goto="v53789">Show on map</button></div>
+</div>
+</article>
+<article class="pr" data-view="zoom" id="pr-v51309">
+<button aria-expanded="false" class="acc"><div class="num">7</div><div class="ttl"><h3>Skip redundant sparse index remap on non-indexer layers</h3><div class="chips"><span class="chip repo">vLLM #51309</span><span class="chip mine">amd-sriram</span><span class="chip open">Open</span><span class="chip rebase">needs-rebase</span><span class="chip">mrv1-only</span><span class="chip">opened 6 Aug</span><span class="chip both" title="the remap ran on every layer of every pass; TTFT and throughput both improved">both</span></div><div class="grp">Indexer — vLLM side (what gets called, and when)</div></div><span aria-hidden="true" class="caret">▾</span></button>
+<div class="body"><div class="where">Where: indexer stage 5 and the IndexShare wire. The PR that directly reflects the "1 layer in 4" design. Phase: both — the remap ran on every layer of every pass; TTFT and throughput both improved.</div>
+<p>With cross-layer index sharing, only indexer-owning layers update the shared top-k buffer, but the old path still remapped it on every layer. Now the remap runs only where a layer owns an indexer: 21 of 78 layers with index_topk_freq=4.</p>
+<div class="result">Remap launches −73%, remap GPU time 2,392 ms → 646 ms. Throughput +0.6% geomean, TTFT −0.9%. Bit-identical indices, so no output change.</div>
+<div class="links"><a href="https://github.com/vllm-project/vllm/pull/51309">PR #51309</a><button class="map" data-goto="v51309">Show on map</button></div>
+</div>
+</article>
+<article class="pr" data-view="zoom" id="pr-a4538">
+<button aria-expanded="false" class="acc"><div class="num other sq">A</div><div class="ttl"><h3>FlyDSL gfx950 FP8 MQA logits indexer kernel</h3><div class="chips"><span class="chip repo">AITER #4538</span><span class="chip">vpietila-amd</span><span class="chip open">Open</span><span class="chip">32 commits</span><span class="chip">opened 3 Aug</span><span class="chip prefill" title="the dense MQA-logits kernel for prefill shapes">prefill</span></div><div class="grp">Indexer — AITER side (the kernels underneath)</div></div><span aria-hidden="true" class="caret">▾</span></button>
+<div class="body"><div class="where">Where: indexer stage 2, the scoring kernel itself, prefill shapes. Drop-in replacement for the Triton/Gluon kernel on MI355X. Phase: prefill — the dense MQA-logits kernel for prefill shapes.</div>
+<p>Two gfx950 implementations: a direct-load kernel and an LDS-staged one that uses the async global-to-LDS DMA, XOR swizzling, and 3 LDS buffers with prefetch depth 2 so only one barrier is needed. An auto-selector picks the instance per shape.</p>
+<div class="result">Versus Triton/Gluon on gfx950: 1.22× at 4096×4096 and 8192×8192, 3.2× at 671×131072, 10.6× at 128×32768. This is the kernel pin 5 feeds.</div>
+<div class="links"><a href="https://github.com/ROCm/aiter/pull/4538">AITER PR #4538</a><button class="map" data-goto="a4538">Show on map</button></div>
+</div>
+</article>
+<article class="pr" data-view="zoom" id="pr-a4221">
+<button aria-expanded="false" class="acc"><div class="num other sq">B</div><div class="ttl"><h3>FlyDSL paged MLA indexer</h3><div class="chips"><span class="chip repo">AITER #4221</span><span class="chip">fhuizing</span><span class="chip open">Open</span><span class="chip">52 commits</span><span class="chip">opened 13 Jul</span><span class="chip decode" title="the paged decode indexer, with ragged next_n for MTP verification">decode</span></div><div class="grp">Indexer — AITER side (the kernels underneath)</div></div><span aria-hidden="true" class="caret">▾</span></button>
+<div class="body"><div class="where">Where: indexer stage 2, the scoring kernel for decode, reading K from the paged FP8 cache through a block table (block size 64). Phase: decode — the paged decode indexer, with ragged next_n for MTP verification.</div>
+<p>Computes logits[m, n] = Σ_h ReLU(⟨Q[m,h], K[n]⟩ · kv_scale[n]) · weights[m,h] on gfx950. Its distinctive feature is a ragged per-sequence next_n, so one captured graph serves any mix of 1 to num_speculative_tokens + 1 verification tokens per request, the varlen decode that MTP's confidence-scheduled verification needs.</p>
+<div class="result">Makes the decode indexer match what the MTP sketcher asks for: verify a different number of drafted words per request in the same step. Pin 6 operates on this kernel's output buffer.</div>
+<div class="links"><a href="https://github.com/ROCm/aiter/pull/4221">AITER PR #4221</a><button class="map" data-goto="a4221">Show on map</button></div>
+</div>
+</article>
+<article class="pr" data-view="zoom" id="pr-a4355">
+<button aria-expanded="false" class="acc"><div class="num other sq">C</div><div class="ttl"><h3>Tiered persistent radix-select decode Top-K + arch/shape dispatcher</h3><div class="chips"><span class="chip repo">AITER #4355</span><span class="chip">JH-Leon-KIM-AMD</span><span class="chip open">Open</span><span class="chip">112 commits</span><span class="chip">opened 23 Jul</span><span class="chip decode" title="the decode top-k, called about 78 times per decode step">decode</span></div><div class="grp">Indexer — AITER side (the kernels underneath)</div></div><span aria-hidden="true" class="caret">▾</span></button>
+<div class="body"><div class="where">Where: indexer stage 4, the top-k kernel that picks the 2,048 notes, called about 78 times per decode step. Phase: decode — the decode top-k, called about 78 times per decode step.</div>
+<p>Replaces the HIP radix sort, which grows with context length (369 µs at 8K → 1,165 µs at 120K, about 15× slower than B200's persistent kernel), with a context-length-independent radix-select that is O(topK · log topK). A dispatcher inside top_k_per_row_decode routes to it only for shapes where it measurably wins.</p>
+<div class="result">Best cell 1.42× on gfx950 and 2.19× on gfx942 versus HIP; without the dispatcher gate it would lose on part of the grid, so the routing is as much the result as the kernel. Set-equivalent with torch.topk. Part of the GLM-5 MXFP4 MI355X perf-uplift epic.</div>
+<div class="links"><a href="https://github.com/ROCm/aiter/pull/4355">AITER PR #4355</a><button class="map" data-goto="a4355">Show on map</button></div>
+</div>
+</article>
+<article class="pr" data-view="model" id="pr-v50535">
+<button aria-expanded="false" class="acc"><div class="num">9</div><div class="ttl"><h3>Use AITER tuned GEMM for the MoE router gate</h3><div class="chips"><span class="chip repo">vLLM #50535</span><span class="chip mine">amd-sriram</span><span class="chip open">Open</span><span class="chip rebase">needs-rebase</span><span class="chip">opened 31 Jul</span><span class="chip both" title="the router gate runs in every pass; TTFT −3.9% and TPOT −3.0%">both</span></div><div class="grp">Mixture-of-experts block</div></div><span aria-hidden="true" class="caret">▾</span></button>
+<div class="body"><div class="where">Where: the router, its gate linear layer. Phase: both — the router gate runs in every pass; TTFT −3.9% and TPOT −3.0%.</div>
+<p>The gate's fast bf16×bf16→fp32 GEMM was gated to Hopper and Blackwell. On ROCm the input was cast to fp32 first, AITER found no tuned kernel and fell back to a plain matmul. Now the input stays bf16 and the cast moves to the small output.</p>
+<div class="result">Largest win among the vLLM pins: throughput +3.1%, TPOT −3.0%, TTFT −3.9% geomean over 16 sweep points, up to +4.6% at concurrency 1. 81/81 kernel tests pass on gfx950.</div>
+<div class="links"><a href="https://github.com/vllm-project/vllm/pull/50535">PR #50535</a><button class="map" data-goto="v50535">Show on map</button></div>
+</div>
+</article>
+<article class="pr" data-view="model" id="pr-a4629">
+<button aria-expanded="false" class="acc"><div class="num other sq">D</div><div class="ttl"><h3>Retune MXFP4 fused-MoE for gfx950 (TP4 + TP8)</h3><div class="chips"><span class="chip repo">AITER #4629</span><span class="chip">nholmber</span><span class="chip open">Open</span><span class="chip">opened 7 Aug</span><span class="chip decode" title="retunes the a4w4 decode MoE kernels; gains sit at concurrency 8–64">decode</span></div><div class="grp">Mixture-of-experts block</div></div><span aria-hidden="true" class="caret">▾</span></button>
+<div class="body"><div class="where">Where: the experts' grouped GEMM kernel, MXFP4 weights, with the shared expert fused in. Phase: decode — retunes the a4w4 decode MoE kernels; gains sit at concurrency 8–64.</div>
+<p>Retunes glm5_fp4_tuned_fmoe.csv to use the mxmoe a4w4 decode kernels for the two GLM-5.2 fused-shared-expert shapes: model_dim 6144, experts 257, top-k 9, inter_dim 512 (TP4, 12 rows) and 256 (TP8, 8 rows).</p>
+<div class="result">End-to-end serving throughput +4.3% mean at TP4 and +3.3% at TP8 on MI355X, peak +16.5% at ISL/OSL 1024 concurrency 32. Gains concentrate at concurrency 8–64. Largest single win on the whole map.</div>
+<div class="links"><a href="https://github.com/ROCm/aiter/pull/4629">AITER PR #4629</a><button class="map" data-goto="a4629">Show on map</button></div>
+</div>
+</article>
+<p class="cap">Sources: the PR pages on GitHub, read 12 September 2026. Reload them for current status.</p>
+</div>
+</div>
+<script>
+(function(){
+const order=["v47757","v46172","v47335","v51315","v51314","v53789","v51309","a4538","a4221","a4355","v50535","a4629"];
+const pins=Array.from(document.querySelectorAll('.pin'));
+const arts=Array.from(document.querySelectorAll('article.pr[data-view]'));
+const right=document.querySelector('.right');
+let current=null, view='model';
+function setView(v){ view=v; document.getElementById('view-model').hidden=(v!=='model'); document.getElementById('view-zoom').hidden=(v!=='zoom'); document.querySelectorAll('.vbtn[data-view]').forEach(b=>b.classList.toggle('on',b.dataset.view===v)); }
+function clearLit(){pins.forEach(p=>p.classList.remove('lit'));document.querySelectorAll('svg .box.lit').forEach(b=>b.classList.remove('lit'));}
+function lit(pr){clearLit();pins.filter(p=>p.dataset.pr===pr).forEach(p=>{p.classList.add('lit');const n=document.getElementById(p.dataset.node);if(n){const b=n.querySelector('.box');if(b)b.classList.add('lit');}});}
+function pulsePin(pr){ const p=pins.find(x=>x.dataset.pr===pr&&!x.closest('.view').hidden); if(p){p.scrollIntoView({behavior:'smooth',block:'center'});p.classList.remove('pulse');void p.getBoundingClientRect();p.classList.add('pulse');} }
+function select(pr,fromPin){ current=pr;
+  arts.forEach(a=>{const on=(a.id==='pr-'+pr);a.classList.toggle('open',on);a.querySelector('.acc').setAttribute('aria-expanded',on?'true':'false');});
+  document.getElementById('about').classList.remove('open');
+  if(pr){ const a=document.getElementById('pr-'+pr); if(a.dataset.view!==view)setView(a.dataset.view); lit(pr); if(!fromPin)pulsePin(pr);
+    a.scrollIntoView({behavior:'smooth',block:'start'}); history.replaceState(null,'','#'+pr); }
+  else { clearLit(); history.replaceState(null,'',location.pathname); }
+}
+document.querySelectorAll('.vbtn[data-view]').forEach(b=>b.addEventListener('click',()=>setView(b.dataset.view)));
+const badge=document.getElementById('zoomBadge'); if(badge){ const z=()=>{setView('zoom');document.querySelector('.left').scrollTo({top:0,behavior:'smooth'});}; badge.addEventListener('click',z); badge.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();z();}}); }
+pins.forEach(p=>{
+  p.addEventListener('mouseenter',()=>{ if(!current)lit(p.dataset.pr); });
+  p.addEventListener('mouseleave',()=>{ if(!current)clearLit(); else lit(current); });
+  const go=()=>select(p.dataset.pr,true);
+  p.addEventListener('click',go); p.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();go();}});
+});
+arts.forEach(a=>a.querySelector('.acc').addEventListener('click',()=>{ const pr=a.id.replace('pr-',''); select(pr===current?null:pr,false); }));
+const about=document.getElementById('about'); about.querySelector('.acc').addEventListener('click',()=>{ const open=!about.classList.contains('open'); if(open)select(null); about.classList.toggle('open',open); about.querySelector('.acc').setAttribute('aria-expanded',open?'true':'false'); });
+document.querySelectorAll('button.map[data-goto]').forEach(b=>b.addEventListener('click',()=>{ const pr=b.dataset.goto; const a=document.getElementById('pr-'+pr); if(a.dataset.view!==view)setView(a.dataset.view); lit(pr); pulsePin(pr); }));
+document.addEventListener('keydown',e=>{ if(!current)return; const i=order.indexOf(current); if(e.key==='ArrowDown'||e.key==='ArrowRight'){e.preventDefault();select(order[(i+1)%order.length],false);} if(e.key==='ArrowUp'||e.key==='ArrowLeft'){e.preventDefault();select(order[(i-1+order.length)%order.length],false);} if(e.key==='Escape')select(null); });
+const h=location.hash.replace('#',''); if(order.includes(h))select(h,false);
+/* resizable split: on load the divider sits exactly at the model's edge; dragging right never enlarges the model */
+const split=document.querySelector('.split'), gutter=document.getElementById('gutter'), leftPane=document.querySelector('.left');
+function setLeft(px){ const w=split.getBoundingClientRect().width; const v=Math.max(300,Math.min(w-360,px)); split.style.setProperty('--leftw',v+'px'); }
+function fitToModel(){ if(window.innerWidth<=900||document.body.classList.contains('focus'))return;
+  const svg=document.querySelector('#view-model svg'); const r=svg.getBoundingClientRect(); if(!r.width||!r.height)return;
+  const pane=leftPane.getBoundingClientRect(); const hint=leftPane.querySelector(':scope > .fit'); const hb=hint?hint.getBoundingClientRect().bottom:document.getElementById('view-model').getBoundingClientRect().bottom;
+  const padB=parseFloat(getComputedStyle(leftPane).paddingBottom)||0;
+  const contentBottom=hb-pane.top+leftPane.scrollTop+padB;          /* where the content ends, relative to the pane top */
+  const spare=leftPane.clientHeight-contentBottom;                   /* positive = room left, negative = overflowing */
+  if(Math.abs(spare)<2)return;
+  const newSvgW=(r.height+spare)*680/990;                            /* the width at which the model exactly fills the height */
+  setLeft(pane.width+(newSvgW-r.width)); leftPane.scrollTop=0;
+}
+function fitTwice(){ requestAnimationFrame(()=>{fitToModel();requestAnimationFrame(()=>{fitToModel();requestAnimationFrame(fitToModel);});}); }
+let dragging=false;
+gutter.addEventListener('pointerdown',e=>{dragging=true;gutter.setPointerCapture(e.pointerId);gutter.classList.add('drag');document.body.classList.add('dragging');});
+gutter.addEventListener('pointermove',e=>{ if(!dragging)return; setLeft(e.clientX-split.getBoundingClientRect().left-5); });
+function endDrag(){ if(!dragging)return; dragging=false; gutter.classList.remove('drag'); document.body.classList.remove('dragging'); }
+gutter.addEventListener('pointerup',endDrag); gutter.addEventListener('pointercancel',endDrag);
+gutter.addEventListener('dblclick',()=>{split.style.removeProperty('--leftw');fitTwice();});
+gutter.addEventListener('keydown',e=>{ const cur=parseFloat(getComputedStyle(split).getPropertyValue('--leftw'))||leftPane.getBoundingClientRect().width; if(e.key==='ArrowLeft'){e.preventDefault();setLeft(cur-40);} if(e.key==='ArrowRight'){e.preventDefault();setLeft(cur+40);} if(e.key==='Home'){e.preventDefault();split.style.removeProperty('--leftw');fitTwice();} });
+let rs; window.addEventListener('resize',()=>{clearTimeout(rs);rs=setTimeout(()=>{split.style.removeProperty('--leftw');fitTwice();},150);});
+window.addEventListener('load',fitTwice); fitTwice();
+/* model-only (focus) mode and full screen */
+const focusBtn=document.getElementById('focusBtn'), fsBtn=document.getElementById('fsBtn');
+function setFocus(on){ document.body.classList.toggle('focus',on); focusBtn.classList.toggle('on',on); if(!on)fitTwice(); }
+focusBtn.addEventListener('click',()=>setFocus(!document.body.classList.contains('focus')));
+function fsOn(){ return !!(document.fullscreenElement||document.webkitFullscreenElement); }
+fsBtn.addEventListener('click',()=>{ const el=document.documentElement; if(fsOn()){ (document.exitFullscreen||document.webkitExitFullscreen).call(document); } else { (el.requestFullscreen||el.webkitRequestFullscreen).call(el).catch?.(()=>{}); } });
+document.addEventListener('fullscreenchange',()=>{ fsBtn.textContent=fsOn()?'⛶ Exit full screen':'⛶ Full screen'; });
+document.addEventListener('keydown',e=>{ if(e.key==='Escape'&&document.body.classList.contains('focus')&&!fsOn())setFocus(false); });
+gutter.addEventListener('keydown',e=>{ const cur=parseFloat(getComputedStyle(split).getPropertyValue('--leftw'))||split.getBoundingClientRect().width/2; if(e.key==='ArrowLeft'){e.preventDefault();setLeft(cur-40,true);} if(e.key==='ArrowRight'){e.preventDefault();setLeft(cur+40,true);} if(e.key==='Home'){e.preventDefault();split.style.removeProperty('--leftw');localStorage.removeItem('glmSplit');} });
+})();
+</script>
+
+</body>
+</html>
